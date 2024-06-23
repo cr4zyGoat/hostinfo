@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"net"
@@ -37,6 +39,19 @@ type CombinedResponse struct {
 	ShodanResponse
 }
 
+var argResolver string
+
+func init() {
+	flag.StringVar(&argResolver, "r", "", "Resolver to use for domain resolution (e.g., 8.8.8.8)")
+
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "[!] Usage: %s [file|target]\n", os.Args[0])
+		fmt.Fprintln(os.Stderr, "If no arguments are provided, targets will be read from stdin.")
+		fmt.Fprintln(os.Stderr, "Options:")
+		flag.PrintDefaults()
+	}
+}
+
 func fetchShodanData(ip string) (ShodanResponse, error) {
 	resp, err := http.Get(fmt.Sprintf("https://internetdb.shodan.io/%s", ip))
 	if err != nil {
@@ -68,7 +83,18 @@ func fetchIPInfoData(ip string) (IPInfoResponse, error) {
 }
 
 func resolveHostname(hostname string) (string, error) {
-	ips, err := net.LookupIP(hostname)
+	var resolver net.Resolver
+	if argResolver != "" {
+		dialer := &net.Dialer{}
+		resolver = net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				return dialer.DialContext(ctx, network, argResolver+":53")
+			},
+		}
+	}
+
+	ips, err := resolver.LookupIPAddr(context.Background(), hostname)
 	if err != nil {
 		return "", err
 	}
@@ -130,24 +156,14 @@ func processTargets(targets []string, singleTarget bool) {
 	}
 }
 
-func showUsage() {
-	fmt.Fprintf(os.Stderr, "[!] Usage: %s [file|target]\n", os.Args[0])
-	fmt.Fprintln(os.Stderr, "If no arguments are provided, targets will be read from stdin.")
-	fmt.Fprintln(os.Stderr, "Options:")
-	fmt.Fprintln(os.Stderr, "  -h, --help      Show this help message")
-}
-
 func main() {
+	flag.Parse()
+
 	var targets []string
 	var singleTarget bool
 
-	if len(os.Args) > 1 {
-		firstArg := os.Args[1]
-		if firstArg == "-h" || firstArg == "--help" {
-			showUsage()
-			return
-		}
-
+	if flag.NArg() > 0 {
+		firstArg := flag.Arg(0)
 		if _, err := os.Stat(firstArg); err == nil {
 			file, err := os.Open(firstArg)
 			if err != nil {
@@ -176,7 +192,7 @@ func main() {
 		}
 
 		if info.Mode()&os.ModeCharDevice != 0 {
-			showUsage()
+			flag.Usage()
 			return
 		}
 
@@ -195,8 +211,8 @@ func main() {
 	}
 
 	if len(targets) == 0 {
-		fmt.Fprintln(os.Stderr, "No targets provided")
-		showUsage()
+		fmt.Fprintln(os.Stderr, "[!] No targets provided")
+		flag.Usage()
 		return
 	}
 
