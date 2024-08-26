@@ -212,8 +212,7 @@ func main() {
 	}
 
 	if len(targets) == 0 {
-		fmt.Fprintln(os.Stderr, "[!] No targets provided")
-		flag.Usage()
+		fmt.Fprintln(os.Stderr, "[!] Hostinfo: No targets provided")
 		return
 	}
 
