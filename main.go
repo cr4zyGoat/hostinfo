@@ -40,6 +40,7 @@ type CombinedResponse struct {
 }
 
 var argResolver string
+var cachedResponses map[string]CombinedResponse
 
 func init() {
 	flag.StringVar(&argResolver, "r", "", "Resolver to use for domain resolution (e.g., 8.8.8.8)")
@@ -114,7 +115,12 @@ func processTarget(target string) (CombinedResponse, error) {
 		if err != nil {
 			return combined, err
 		}
+	}
+
+	combined, cached := cachedResponses[ip]
+	if cached {
 		combined.Target = target
+		return combined, nil
 	}
 
 	shodanData, _ := fetchShodanData(ip)
@@ -125,12 +131,16 @@ func processTarget(target string) (CombinedResponse, error) {
 
 	combined.ShodanResponse = shodanData
 	combined.IPInfoResponse = ipInfoData
+	combined.Target = target
 	combined.IP = ip
 
+	cachedResponses[ip] = combined
 	return combined, nil
 }
 
 func processTargets(targets []string, singleTarget bool) {
+	cachedResponses = map[string]CombinedResponse{}
+
 	for _, target := range targets {
 		combinedData, err := processTarget(target)
 		if err != nil {
