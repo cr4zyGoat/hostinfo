@@ -14,7 +14,6 @@ import (
 )
 
 type IPInfoResponse struct {
-	IP       string `json:"ip"`
 	Hostname string `json:"hostname,omitempty"`
 	City     string `json:"city"`
 	Region   string `json:"region"`
@@ -35,6 +34,7 @@ type ShodanResponse struct {
 
 type CombinedResponse struct {
 	Target string `json:"target,omitempty"`
+	IP     string `json:"ip"`
 	IPInfoResponse
 	ShodanResponse
 }
@@ -125,6 +125,7 @@ func processTarget(target string) (CombinedResponse, error) {
 
 	combined.ShodanResponse = shodanData
 	combined.IPInfoResponse = ipInfoData
+	combined.IP = ip
 
 	return combined, nil
 }
